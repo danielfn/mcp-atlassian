@@ -236,6 +236,28 @@ async def get_jira_fetcher(ctx: Context) -> JiraFetcher:
                 logger.debug(
                     f"get_jira_fetcher: Validated header-based Jira token for user ID: {current_user_id}"
                 )
+                # Extract username for metrics tracking
+                if (
+                    not hasattr(request.state, "user_atlassian_username")
+                    or not request.state.user_atlassian_username
+                ):
+                    try:
+                        myself_data = header_jira_fetcher.jira.myself()
+                        username = (
+                            myself_data.get("emailAddress")
+                            or myself_data.get("name")
+                            or myself_data.get("displayName")
+                            or current_user_id
+                        )
+                        request.state.user_atlassian_username = username
+                        logger.debug(
+                            f"get_jira_fetcher: Extracted username for metrics: {username}"
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            f"get_jira_fetcher: Failed to extract username for metrics: {e}"
+                        )
+                        request.state.user_atlassian_username = current_user_id
                 request.state.jira_fetcher = header_jira_fetcher
                 return header_jira_fetcher
             except Exception as e:
@@ -287,6 +309,28 @@ async def get_jira_fetcher(ctx: Context) -> JiraFetcher:
                 logger.debug(
                     f"get_jira_fetcher: Validated Jira token for user ID: {current_user_id}"
                 )
+                # Extract username for metrics tracking
+                if (
+                    not hasattr(request.state, "user_atlassian_username")
+                    or not request.state.user_atlassian_username
+                ):
+                    try:
+                        myself_data = user_jira_fetcher.jira.myself()
+                        username = (
+                            myself_data.get("emailAddress")
+                            or myself_data.get("name")
+                            or myself_data.get("displayName")
+                            or current_user_id
+                        )
+                        request.state.user_atlassian_username = username
+                        logger.debug(
+                            f"get_jira_fetcher: Extracted username for metrics: {username}"
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            f"get_jira_fetcher: Failed to extract username for metrics: {e}"
+                        )
+                        request.state.user_atlassian_username = current_user_id
                 request.state.jira_fetcher = user_jira_fetcher
                 return user_jira_fetcher
             except Exception as e:
@@ -405,6 +449,16 @@ async def get_confluence_fetcher(ctx: Context) -> ConfluenceFetcher:
                     and isinstance(current_user_data, dict)
                 ):
                     request.state.user_atlassian_email = current_user_data["email"]
+                # Extract username for metrics tracking
+                if (
+                    not hasattr(request.state, "user_atlassian_username")
+                    or not request.state.user_atlassian_username
+                ):
+                    username = derived_email or display_name or "unknown"
+                    request.state.user_atlassian_username = username
+                    logger.debug(
+                        f"get_confluence_fetcher: Extracted username for metrics: {username}"
+                    )
                 return header_confluence_fetcher
             except Exception as e:
                 logger.error(
@@ -475,6 +529,16 @@ async def get_confluence_fetcher(ctx: Context) -> ConfluenceFetcher:
                     and current_user_data.get("email")
                 ):
                     request.state.user_atlassian_email = current_user_data["email"]
+                # Extract username for metrics tracking
+                if (
+                    not hasattr(request.state, "user_atlassian_username")
+                    or not request.state.user_atlassian_username
+                ):
+                    username = user_email or derived_email or display_name or "unknown"
+                    request.state.user_atlassian_username = username
+                    logger.debug(
+                        f"get_confluence_fetcher: Extracted username for metrics: {username}"
+                    )
                 return user_confluence_fetcher
             except Exception as e:
                 logger.error(
@@ -590,6 +654,16 @@ async def get_bitbucket_fetcher(ctx: Context) -> BitbucketFetcher:
                     and isinstance(current_user_data, dict)
                 ):
                     request.state.user_atlassian_email = current_user_data["email"]
+                # Extract username for metrics tracking
+                if (
+                    not hasattr(request.state, "user_atlassian_username")
+                    or not request.state.user_atlassian_username
+                ):
+                    username = derived_email or display_name or "unknown"
+                    request.state.user_atlassian_username = username
+                    logger.debug(
+                        f"get_bitbucket_fetcher: Extracted username for metrics: {username}"
+                    )
                 return header_bitbucket_fetcher
             except Exception as e:
                 logger.error(
@@ -659,6 +733,16 @@ async def get_bitbucket_fetcher(ctx: Context) -> BitbucketFetcher:
                     and current_user_data.get("email")
                 ):
                     request.state.user_atlassian_email = current_user_data["email"]
+                # Extract username for metrics tracking
+                if (
+                    not hasattr(request.state, "user_atlassian_username")
+                    or not request.state.user_atlassian_username
+                ):
+                    username = user_email or derived_email or display_name or "unknown"
+                    request.state.user_atlassian_username = username
+                    logger.debug(
+                        f"get_bitbucket_fetcher: Extracted username for metrics: {username}"
+                    )
                 return user_bitbucket_fetcher
             except Exception as e:
                 logger.error(

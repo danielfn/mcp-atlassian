@@ -586,14 +586,13 @@ class UserTokenMiddleware:
                     activity_type = None
                     # Reset message index for the actual app
                     message_index = 0
-                # Only track when service-specific headers are provided (header-based auth)
-                # Track activity only once per request, using the appropriate service
 
                 # Determine which service to use based on activity type, or fallback to first available
                 service_to_use = None
                 username_to_use = None
 
                 if activity_type:
+                    # First check header-based auth with specific service headers
                     if (
                         activity_type.startswith("jira_")
                         and jira_token_header_str
@@ -615,6 +614,22 @@ class UserTokenMiddleware:
                     ):
                         service_to_use = "bitbucket"
                         username_to_use = username
+                    # If no service headers but we have general auth and activity type, infer service
+                    elif activity_type.startswith("jira_"):
+                        service_to_use = "jira"
+                        username_to_use = (
+                            username  # Will be None initially, updated later
+                        )
+                    elif activity_type.startswith("confluence_"):
+                        service_to_use = "confluence"
+                        username_to_use = (
+                            username  # Will be None initially, updated later
+                        )
+                    elif activity_type.startswith("bitbucket_"):
+                        service_to_use = "bitbucket"
+                        username_to_use = (
+                            username  # Will be None initially, updated later
+                        )
 
                 # If no specific service determined from activity type, use first available service
                 if not service_to_use:
@@ -631,7 +646,12 @@ class UserTokenMiddleware:
                         username_to_use = username
                         activity_type = activity_type or "bitbucket_access"
 
-                # Track the activity for the determined service
+                # Store activity info in scope for later tracking with extracted username
+                scope_copy["state"]["_metrics_activity_type"] = activity_type
+                scope_copy["state"]["_metrics_service"] = service_to_use
+                scope_copy["state"]["_metrics_initial_username"] = username_to_use
+
+                # Track the activity for the determined service (with initial username, may be None)
                 if service_to_use:
                     metrics_collector.track_user_activity(
                         username=username_to_use,
@@ -805,6 +825,27 @@ class UserTokenMiddleware:
         # Continue with the request using the modified scope and cached receive
         receive_func = cached_receive if "cached_receive" in locals() else receive
         await self.app(scope_copy, receive_func, safe_send)
+
+        # After the request completes, check if we have a username from the fetcher creation
+        # and track user activity with the real username if we didn't have it before
+        if metrics_collector:
+            activity_type = scope_copy["state"].get("_metrics_activity_type")
+            service_to_use = scope_copy["state"].get("_metrics_service")
+            initial_username = scope_copy["state"].get("_metrics_initial_username")
+            extracted_username = scope_copy["state"].get("user_atlassian_username")
+
+            # If we now have a real username from the API and it's different from the initial one
+            if activity_type and service_to_use and extracted_username:
+                if extracted_username != initial_username:
+                    logger.debug(
+                        f"UserTokenMiddleware: Tracking user activity with extracted username: {extracted_username} "
+                        f"(service: {service_to_use}, activity: {activity_type}, initial: {initial_username})"
+                    )
+                    metrics_collector.track_user_activity(
+                        username=extracted_username,
+                        user_agent=user_agent,
+                        activity_type=activity_type,
+                    )
 
         # End metrics tracking
         if metrics_collector and metrics_context:
